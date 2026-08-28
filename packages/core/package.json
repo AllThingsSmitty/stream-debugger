@@ -1,0 +1,26 @@
+{
+  "name": "@stream-debugger/core",
+  "version": "0.1.0",
+  "description": "Core domain logic for stream-debugger (streaming, replay, waterfall)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc && echo 'Build complete'",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "lint": "eslint src --ext .ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "vitest": "^1.0.0",
+    "eslint": "^8.54.0"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@stream-debugger/example-basic-sse",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Basic SSE streaming example",
+  "scripts": {
+    "dev": "node src/server.js",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@stream-debugger/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}
