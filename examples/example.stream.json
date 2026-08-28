@@ -1,0 +1,149 @@
+{
+  "version": "1.0.0",
+  "metadata": {
+    "streamId": "550e8400-e29b-41d4-a716-446655440000",
+    "provider": "openai",
+    "model": "gpt-4-turbo",
+    "startTime": "2026-08-28T14:32:00.000Z",
+    "endTime": "2026-08-28T14:32:03.245Z",
+    "durationMs": 3245,
+    "request": {
+      "userId": "user_123",
+      "sessionId": "session_456",
+      "purpose": "code_generation",
+      "promptPreview": "Write a TypeScript function to parse a CSV file...",
+      "parameters": {
+        "temperature": 0.7,
+        "top_p": 0.9,
+        "max_tokens": 2000
+      }
+    },
+    "response": {
+      "finishReason": "stop",
+      "inputTokens": 87,
+      "outputTokens": 356
+    },
+    "tags": {
+      "environment": "development",
+      "version": "0.1.0"
+    }
+  },
+  "events": [
+    {
+      "type": "metadata",
+      "offsetMs": 0,
+      "data": "Stream started",
+      "metadata": {
+        "label": "stream_init"
+      }
+    },
+    {
+      "type": "token",
+      "offsetMs": 142,
+      "data": "function",
+      "tokens": 1,
+      "metadata": {
+        "decodedToken": "function"
+      }
+    },
+    {
+      "type": "token",
+      "offsetMs": 156,
+      "data": " parse",
+      "tokens": 1,
+      "metadata": {
+        "decodedToken": " parse"
+      }
+    },
+    {
+      "type": "token",
+      "offsetMs": 171,
+      "data": "CSV",
+      "tokens": 1,
+      "metadata": {
+        "decodedToken": "CSV"
+      }
+    },
+    {
+      "type": "chunk",
+      "offsetMs": 185,
+      "data": "(input: string): string[] {\n  return input.split('\\n')",
+      "tokens": 15,
+      "metadata": {
+        "rawProvider": {
+          "object": "text_completion.chunk",
+          "choices": [
+            {
+              "finish_reason": null,
+              "index": 0,
+              "delta": {
+                "content": "(input: string): string[] {\n  return input.split('\\n')"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "marker",
+      "offsetMs": 3200,
+      "metadata": {
+        "label": "stream_complete"
+      }
+    }
+  ],
+  "waterfall": {
+    "timeToFirstTokenMs": 142,
+    "timeline": [
+      {
+        "startMs": 0,
+        "endMs": 500,
+        "tokenCount": 3,
+        "throughputTokensPerSec": 6,
+        "eventIndices": [1, 2, 3]
+      },
+      {
+        "startMs": 500,
+        "endMs": 3245,
+        "tokenCount": 353,
+        "throughputTokensPerSec": 118.5,
+        "eventIndices": [4]
+      }
+    ],
+    "keyframes": [
+      {
+        "offsetMs": 0,
+        "label": "Start",
+        "eventIndex": 0,
+        "progress": 0
+      },
+      {
+        "offsetMs": 142,
+        "label": "First token",
+        "eventIndex": 1,
+        "progress": 5
+      },
+      {
+        "offsetMs": 3200,
+        "label": "Complete",
+        "eventIndex": 5,
+        "progress": 100
+      }
+    ]
+  },
+  "summary": {
+    "totalEvents": 6,
+    "totalTokens": 356,
+    "inputTokens": 87,
+    "averageLatencyMs": 18.6,
+    "peakThroughputTokensPerSec": 118.5,
+    "minThroughputTokensPerSec": 6,
+    "fullText": "function parseCSV(input: string): string[] {\n  return input.split('\\n').map(line => line.split(','))",
+    "estimatedCost": {
+      "currency": "USD",
+      "amount": 0.00847
+    },
+    "exportedAt": "2026-08-28T14:32:04.100Z",
+    "exportedBy": "stream-debugger/0.1.0"
+  }
+}
