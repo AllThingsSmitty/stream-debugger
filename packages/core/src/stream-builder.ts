@@ -1,4 +1,4 @@
-import { crypto } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import {
   StreamDocument,
   StreamMetadata,
@@ -35,7 +35,7 @@ export class StreamBuilder {
   };
 
   constructor(provider: string, model: string) {
-    this.streamId = crypto.randomUUID();
+    this.streamId = randomUUID();
     this.provider = provider;
     this.model = model;
     this.startTime = new Date();

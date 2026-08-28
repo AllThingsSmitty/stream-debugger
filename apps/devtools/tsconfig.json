@@ -3,7 +3,9 @@
   "compilerOptions": {
     "jsx": "preserve",
     "incremental": true,
-    "outDir": ".next"
+    "outDir": ".next",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
   "exclude": ["node_modules", ".next"]

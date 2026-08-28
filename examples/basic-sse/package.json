@@ -4,8 +4,8 @@
   "private": true,
   "description": "Basic SSE streaming example",
   "scripts": {
-    "dev": "node src/server.js",
-    "build": "tsc",
+    "dev": "ts-node src/openai-example.ts",
+    "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

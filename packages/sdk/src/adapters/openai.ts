@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   StreamBuilder,
   StreamDocument,
@@ -9,14 +10,132 @@ import type { CaptureConfig, StreamCapture } from '../types/adapter';
 /**
  * OpenAI streaming response capture
  */
-interface OpenAICapture extends StreamCapture {
-  _events: Array<{
+class OpenAICapture implements StreamCapture {
+  streamId: string;
+  private events: Array<{
     type: 'chunk' | 'error';
     data: unknown;
     timestamp: number;
   }>;
-  _startTime: number;
-  _cancelled: boolean;
+  private startTime: number;
+  private cancelled: boolean;
+  private model: string;
+  private requestContext: RequestContext;
+  private config: CaptureConfig;
+
+  constructor(
+    streamId: string,
+    model: string,
+    startTime: number,
+    requestContext: RequestContext,
+    config: CaptureConfig
+  ) {
+    this.streamId = streamId;
+    this.model = model;
+    this.startTime = startTime;
+    this.requestContext = requestContext;
+    this.config = config;
+    this.events = [];
+    this.cancelled = false;
+  }
+
+  addEvent(type: 'chunk' | 'error', data: unknown, timestamp: number): void {
+    this.events.push({ type, data, timestamp });
+  }
+
+  cancel(): void {
+    this.cancelled = true;
+  }
+
+  getCurrent(): StreamDocument {
+    return this.buildDocument();
+  }
+
+  async finish(): Promise<StreamDocument> {
+    return this.buildDocument();
+  }
+
+  private buildDocument(): StreamDocument {
+    const builder = new StreamBuilder('openai', this.model);
+
+    builder.setRequestContext(this.requestContext);
+    builder.addMarker('stream_start', 0);
+
+    if (this.config.tags) {
+      builder.addTags(this.config.tags);
+    }
+
+    let totalTokens = 0;
+    let finishReason: string | undefined;
+    let fullText = '';
+    let firstTokenOffset = -1;
+    let error: { code: string; message: string } | undefined;
+
+    // Process all captured events
+    for (const event of this.events) {
+      if (event.type === 'error') {
+        const err = event.data as any;
+        error = {
+          code: err.code || 'UNKNOWN',
+          message: err.message || String(err),
+        };
+        builder.addError(error.code, error.message, event.timestamp);
+      } else if (event.type === 'chunk') {
+        const chunk = event.data as any;
+
+        // Extract choice delta
+        if (chunk.choices?.[0]?.delta?.content) {
+          const content = chunk.choices[0].delta.content;
+          const tokens = this.estimateTokens(content);
+
+          if (firstTokenOffset === -1) {
+            firstTokenOffset = event.timestamp;
+          }
+
+          totalTokens += tokens;
+          fullText += content;
+
+          builder.addChunk(content, event.timestamp, tokens, {
+            choice_index: chunk.choices[0].index,
+            finish_reason: chunk.choices[0].finish_reason,
+          });
+        }
+
+        // Capture finish reason
+        if (chunk.choices?.[0]?.finish_reason) {
+          finishReason = chunk.choices[0].finish_reason;
+        }
+
+        // Extract usage if available (usually in the last chunk)
+        if (chunk.usage) {
+          builder.setResponseContext({
+            finishReason,
+            inputTokens: chunk.usage.prompt_tokens,
+            outputTokens: chunk.usage.completion_tokens,
+          });
+        }
+      }
+    }
+
+    // Set final response context
+    const responseContext: ResponseContext = {
+      finishReason: finishReason || 'unknown',
+      outputTokens: totalTokens,
+    };
+
+    if (error) {
+      responseContext.error = error;
+    }
+
+    builder.setResponseContext(responseContext);
+    builder.addMarker('stream_complete', Date.now() - this.startTime);
+
+    return builder.build();
+  }
+
+  private estimateTokens(text: string): number {
+    return Math.ceil(text.length / 4);
+  }
 }
 
 /**
@@ -54,11 +173,9 @@ export class OpenAIStreamAdapter {
   async captureStream(
     params: Record<string, unknown>,
     config: CaptureConfig = {}
-  ): Promise<OpenAICapture> {
+  ): Promise<StreamCapture> {
     const streamId = this.generateId();
     const startTime = Date.now();
-    const events: Array<{ type: 'chunk' | 'error'; data: unknown; timestamp: number }> = [];
-    let cancelled = false;
 
     // Extract model and build context
     const model = (params.model as string) || 'unknown';
@@ -80,151 +197,28 @@ export class OpenAIStreamAdapter {
       requestContext.promptFull = this.extractPromptFull(messages);
     }
 
-    // Execute streaming request
-    try {
-      const stream = await this.client.chat.completions.create({
-        ...params,
-        stream: true,
-      });
+    // Create capture object
+    const capture = new OpenAICapture(streamId, model, startTime, requestContext, config);
 
-      // Process stream events
-      for await (const chunk of stream) {
-        if (cancelled) break;
-
-        const timestamp = Date.now() - startTime;
-        events.push({
-          type: 'chunk',
-          data: chunk,
-          timestamp,
+    // Execute streaming request in background
+    (async () => {
+      try {
+        const stream = await this.client.chat.completions.create({
+          ...params,
+          stream: true,
         });
+
+        // Process stream events
+        for await (const chunk of stream) {
+          if (capture.cancel.toString() === 'true') break;
+          const timestamp = Date.now() - startTime;
+          capture.addEvent('chunk', chunk, timestamp);
+        }
+      } catch (error) {
+        const timestamp = Date.now() - startTime;
+        capture.addEvent('error', error, timestamp);
       }
-    } catch (error) {
-      const timestamp = Date.now() - startTime;
-      events.push({
-        type: 'error',
-        data: error,
-        timestamp,
-      });
-    }
-
-    // Build the capture object
-    const capture: OpenAICapture = {
-      streamId,
-      _events: events,
-      _startTime: startTime,
-      _cancelled: cancelled,
-
-      cancel() {
-        this._cancelled = true;
-      },
-
-      getCurrent(): StreamDocument {
-        return this._buildDocument(
-          streamId,
-          model,
-          startTime,
-          events,
-          requestContext,
-          config
-        );
-      },
-
-      async finish(): Promise<StreamDocument> {
-        return this._buildDocument(
-          streamId,
-          model,
-          startTime,
-          events,
-          requestContext,
-          config
-        );
-      },
-
-      _buildDocument(
-        streamId: string,
-        model: string,
-        startTime: number,
-        events: Array<{ type: 'chunk' | 'error'; data: unknown; timestamp: number }>,
-        requestContext: RequestContext,
-        config: CaptureConfig
-      ): StreamDocument {
-        const builder = new StreamBuilder('openai', model);
-
-        builder.setRequestContext(requestContext);
-        builder.addMarker('stream_start', 0);
-
-        if (config.tags) {
-          builder.addTags(config.tags);
-        }
-
-        let totalTokens = 0;
-        let finishReason: string | undefined;
-        let fullText = '';
-        let firstTokenOffset = -1;
-        let error: { code: string; message: string } | undefined;
-
-        // Process all captured events
-        for (const event of events) {
-          if (event.type === 'error') {
-            const err = event.data as any;
-            error = {
-              code: err.code || 'UNKNOWN',
-              message: err.message || String(err),
-            };
-            builder.addError(error.code, error.message, event.timestamp);
-          } else if (event.type === 'chunk') {
-            const chunk = event.data as any;
-
-            // Extract choice delta
-            if (chunk.choices?.[0]?.delta?.content) {
-              const content = chunk.choices[0].delta.content;
-              const tokens = this.estimateTokens(content);
-
-              if (firstTokenOffset === -1) {
-                firstTokenOffset = event.timestamp;
-              }
-
-              totalTokens += tokens;
-              fullText += content;
-
-              builder.addChunk(content, event.timestamp, tokens, {
-                choice_index: chunk.choices[0].index,
-                finish_reason: chunk.choices[0].finish_reason,
-              });
-            }
-
-            // Capture finish reason
-            if (chunk.choices?.[0]?.finish_reason) {
-              finishReason = chunk.choices[0].finish_reason;
-            }
-
-            // Extract usage if available (usually in the last chunk)
-            if (chunk.usage) {
-              builder.setResponseContext({
-                finishReason,
-                inputTokens: chunk.usage.prompt_tokens,
-                outputTokens: chunk.usage.completion_tokens,
-              });
-            }
-          }
-        }
-
-        // Set final response context
-        const responseContext: ResponseContext = {
-          finishReason: finishReason || 'unknown',
-          outputTokens: totalTokens,
-        };
-
-        if (error) {
-          responseContext.error = error;
-        }
-
-        builder.setResponseContext(responseContext);
-        builder.addMarker('stream_complete', Date.now() - startTime);
-
-        return builder.build();
-      },
-    };
+    })();
 
     return capture;
   }
@@ -274,6 +268,6 @@ export class OpenAIStreamAdapter {
    * Generate a unique stream ID
    */
   private generateId(): string {
-    return `stream_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    return randomUUID();
   }
 }
