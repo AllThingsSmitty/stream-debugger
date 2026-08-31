@@ -21,6 +21,20 @@ interface OpenAIError {
   message?: string;
 }
 
+interface OpenAIMessage {
+  role: string;
+  content: string | Array<{ type?: string; text?: string }>;
+}
+
+interface OpenAIClient {
+  [key: string]: unknown;
+  chat?: {
+    completions?: {
+      create?: (params: Record<string, unknown>) => unknown;
+    };
+  };
+}
+
 /**
  * OpenAI streaming response capture
  */
@@ -191,7 +205,7 @@ export class OpenAIStreamAdapter {
 
     // Extract model and build context
     const model = (params.model as string) || 'unknown';
-    const messages = (params.messages as unknown[]) || [];
+    const messages = (params.messages as OpenAIMessage[]) || [];
 
     const requestContext: RequestContext = {
       userId: config.userId,
@@ -215,7 +229,11 @@ export class OpenAIStreamAdapter {
     // Execute streaming request in background
     (async () => {
       try {
-        const stream = await this.client.chat.completions.create({
+        const client = this.client as Record<string, unknown>;
+        const chat = (client.chat as Record<string, unknown>);
+        const completions = (chat.completions as Record<string, unknown>);
+        const create = (completions.create as Function);
+        const stream = await create({
           ...params,
           stream: true,
         });
@@ -238,7 +256,7 @@ export class OpenAIStreamAdapter {
   /**
    * Extract preview text from messages (first 100 chars of last user message)
    */
-  private extractPromptPreview(messages: unknown[]): string {
+  private extractPromptPreview(messages: OpenAIMessage[]): string {
     const userMessages = messages.filter((m) => m.role === 'user');
     if (userMessages.length === 0) return '';
 
@@ -254,16 +272,16 @@ export class OpenAIStreamAdapter {
   /**
    * Extract full prompt from messages
    */
-  private extractPromptFull(messages: unknown[]): string {
+  private extractPromptFull(messages: OpenAIMessage[]): string {
     return messages
       .map((m) => {
         const role = m.role.toUpperCase();
         const content =
           typeof m.content === 'string'
             ? m.content
-            : m.content
-                ?.map((c: unknown) => (typeof c === 'string' ? c : (c as Record<string, unknown>).text || ''))
-                .join('\n') || '';
+            : Array.isArray(m.content)
+                ? m.content.map((c) => (typeof c === 'string' ? c : (c as Record<string, unknown>).text || '')).join('\n')
+                : '';
         return `[${role}]\n${content}`;
       })
       .join('\n\n');

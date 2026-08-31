@@ -5,9 +5,17 @@ import { OpenAIStreamAdapter } from './openai';
  * Test OpenAI adapter with mock data (no real API key needed)
  */
 
+interface MockOpenAIClient {
+  chat: {
+    completions: {
+      create: ReturnType<typeof vi.fn>;
+    };
+  };
+}
+
 describe('OpenAIStreamAdapter', () => {
   let adapter: OpenAIStreamAdapter;
-  let mockClient: unknown;
+  let mockClient: MockOpenAIClient;
 
   beforeEach(() => {
     // Create mock OpenAI client that simulates streaming
