@@ -7,33 +7,52 @@ import {
 } from '@stream-debugger/core';
 import type { CaptureConfig, StreamCapture } from '../types/adapter';
 
-interface OpenAIChunk {
-  choices?: Array<{
-    delta?: { content?: string };
-    finish_reason?: string | null;
-    index?: number;
-  }>;
-  usage?: { completion_tokens?: number; prompt_tokens?: number };
+interface AnthropicContentBlockDelta {
+  type: 'content_block_delta';
+  content_block: { type: string; text?: string };
+  delta: { type: 'text_delta'; text: string };
+  index: number;
 }
 
-interface OpenAIError {
-  code?: string;
-  message?: string;
+interface AnthropicMessageStart {
+  type: 'message_start';
+  message: {
+    id: string;
+    type: string;
+    role: string;
+    content: Array<{ type: string }>;
+    model: string;
+    stop_reason: string | null;
+    stop_sequence: string | null;
+    usage: { input_tokens: number; output_tokens: number };
+  };
 }
 
-interface OpenAIMessage {
+interface AnthropicMessageDelta {
+  type: 'message_delta';
+  delta: { stop_reason: string; stop_sequence: string | null };
+  usage: { output_tokens: number };
+}
+
+type AnthropicEvent =
+  | AnthropicMessageStart
+  | AnthropicContentBlockDelta
+  | AnthropicMessageDelta
+  | { type: string; [key: string]: unknown };
+
+interface AnthropicMessage {
   role: string;
   content: string | Array<{ type?: string; text?: string }>;
 }
 
 
 /**
- * OpenAI streaming response capture
+ * Anthropic streaming response capture
  */
-class OpenAICapture implements StreamCapture {
+class AnthropicCapture implements StreamCapture {
   streamId: string;
   private events: Array<{
-    type: 'chunk' | 'error';
+    type: 'event' | 'error';
     data: unknown;
     timestamp: number;
   }>;
@@ -59,7 +78,7 @@ class OpenAICapture implements StreamCapture {
     this.cancelled = false;
   }
 
-  addEvent(type: 'chunk' | 'error', data: unknown, timestamp: number): void {
+  addEvent(type: 'event' | 'error', data: unknown, timestamp: number): void {
     this.events.push({ type, data, timestamp });
   }
 
@@ -76,7 +95,7 @@ class OpenAICapture implements StreamCapture {
   }
 
   private buildDocument(): StreamDocument {
-    const builder = new StreamBuilder('openai', this.model);
+    const builder = new StreamBuilder('anthropic', this.model);
 
     builder.setRequestContext(this.requestContext);
     builder.addMarker('stream_start', 0);
@@ -85,52 +104,45 @@ class OpenAICapture implements StreamCapture {
       builder.addTags(this.config.tags);
     }
 
-    let totalTokens = 0;
+    let inputTokens = 0;
+    let outputTokens = 0;
     let finishReason: string | undefined;
-    let firstTokenOffset = -1;
     let error: { code: string; message: string } | undefined;
 
     // Process all captured events
     for (const event of this.events) {
       if (event.type === 'error') {
-        const err = event.data as OpenAIError;
+        const err = event.data as Record<string, unknown>;
+        const errorObj = err.error as Record<string, unknown> | undefined;
         error = {
-          code: err.code || 'UNKNOWN',
-          message: err.message || String(err),
+          code: (errorObj?.type as string) || 'UNKNOWN',
+          message: (errorObj?.message as string) || String(err),
         };
         builder.addError(error.code, error.message, event.timestamp);
-      } else if (event.type === 'chunk') {
-        const chunk = event.data as OpenAIChunk;
+      } else if (event.type === 'event') {
+        const evt = event.data as AnthropicEvent;
 
-        // Extract choice delta
-        if (chunk.choices?.[0]?.delta?.content) {
-          const content = chunk.choices[0].delta.content;
-          const tokens = this.estimateTokens(content);
+        if (evt.type === 'message_start') {
+          const msgStart = evt as AnthropicMessageStart;
+          inputTokens = msgStart.message.usage.input_tokens;
+        }
 
-          if (firstTokenOffset === -1) {
-            firstTokenOffset = event.timestamp;
+        if (evt.type === 'content_block_delta') {
+          const delta = evt as AnthropicContentBlockDelta;
+          if (delta.delta.type === 'text_delta' && delta.delta.text) {
+            const content = delta.delta.text;
+            const tokens = this.estimateTokens(content);
+
+            builder.addChunk(content, event.timestamp, tokens, {
+              block_index: delta.index,
+            });
           }
-
-          totalTokens += tokens;
-
-          builder.addChunk(content, event.timestamp, tokens, {
-            choice_index: chunk.choices[0].index,
-            finish_reason: chunk.choices[0].finish_reason,
-          });
         }
 
-        // Capture finish reason
-        if (chunk.choices?.[0]?.finish_reason) {
-          finishReason = chunk.choices[0].finish_reason;
-        }
-
-        // Extract usage if available (usually in the last chunk)
-        if (chunk.usage) {
-          builder.setResponseContext({
-            finishReason,
-            inputTokens: chunk.usage.prompt_tokens,
-            outputTokens: chunk.usage.completion_tokens,
-          });
+        if (evt.type === 'message_delta') {
+          const msgDelta = evt as AnthropicMessageDelta;
+          finishReason = msgDelta.delta.stop_reason;
+          outputTokens = msgDelta.usage.output_tokens;
         }
       }
     }
@@ -138,7 +150,8 @@ class OpenAICapture implements StreamCapture {
     // Set final response context
     const responseContext: ResponseContext = {
       finishReason: finishReason || 'unknown',
-      outputTokens: totalTokens,
+      inputTokens,
+      outputTokens,
     };
 
     if (error) {
@@ -157,36 +170,37 @@ class OpenAICapture implements StreamCapture {
 }
 
 /**
- * OpenAI Streaming Adapter
+ * Anthropic Streaming Adapter
  *
- * Captures OpenAI chat completion streams and converts them to .stream documents.
+ * Captures Anthropic message streams and converts them to .stream documents.
  *
  * Usage:
  * ```typescript
- * import OpenAI from 'openai';
- * import { OpenAIStreamAdapter } from '@stream-debugger/sdk';
+ * import Anthropic from '@anthropic-ai/sdk';
+ * import { AnthropicStreamAdapter } from '@stream-debugger/sdk';
  *
- * const client = new OpenAI();
- * const adapter = new OpenAIStreamAdapter(client);
+ * const client = new Anthropic();
+ * const adapter = new AnthropicStreamAdapter(client);
  *
  * const capture = await adapter.captureStream({
- *   model: 'gpt-4-turbo',
+ *   model: 'claude-3-5-sonnet-20241022',
+ *   max_tokens: 1024,
  *   messages: [{ role: 'user', content: 'Hello!' }],
  * });
  *
  * const stream = await capture.finish();
  * ```
  */
-export class OpenAIStreamAdapter {
-  provider = 'openai';
+export class AnthropicStreamAdapter {
+  provider = 'anthropic';
 
   /**
-   * @param client OpenAI client instance (or compatible)
+   * @param client Anthropic client instance (or compatible)
    */
   constructor(private client: unknown) {}
 
   /**
-   * Capture a streaming chat completion
+   * Capture a streaming message creation
    */
   async captureStream(
     params: Record<string, unknown>,
@@ -197,7 +211,7 @@ export class OpenAIStreamAdapter {
 
     // Extract model and build context
     const model = (params.model as string) || 'unknown';
-    const messages = (params.messages as OpenAIMessage[]) || [];
+    const messages = (params.messages as AnthropicMessage[]) || [];
 
     const requestContext: RequestContext = {
       userId: config.userId,
@@ -216,25 +230,30 @@ export class OpenAIStreamAdapter {
     }
 
     // Create capture object
-    const capture = new OpenAICapture(streamId, model, startTime, requestContext, config);
+    const capture = new AnthropicCapture(
+      streamId,
+      model,
+      startTime,
+      requestContext,
+      config
+    );
 
     // Execute streaming request in background
     (async () => {
       try {
         const client = this.client as Record<string, unknown>;
-        const chat = (client.chat as Record<string, unknown>);
-        const completions = (chat.completions as Record<string, unknown>);
-        const create = completions.create as (params: Record<string, unknown>) => Promise<unknown>;
+        const messages_api = client.messages as Record<string, unknown>;
+        const create = messages_api.create as (params: Record<string, unknown>) => Promise<unknown>;
         const stream = await create({
           ...params,
           stream: true,
         }) as AsyncIterable<unknown>;
 
         // Process stream events
-        for await (const chunk of stream) {
+        for await (const event of stream) {
           if (capture.cancel.toString() === 'true') break;
           const timestamp = Date.now() - startTime;
-          capture.addEvent('chunk', chunk, timestamp);
+          capture.addEvent('event', event, timestamp);
         }
       } catch (error) {
         const timestamp = Date.now() - startTime;
@@ -248,7 +267,7 @@ export class OpenAIStreamAdapter {
   /**
    * Extract preview text from messages (first 100 chars of last user message)
    */
-  private extractPromptPreview(messages: OpenAIMessage[]): string {
+  private extractPromptPreview(messages: AnthropicMessage[]): string {
     const userMessages = messages.filter((m) => m.role === 'user');
     if (userMessages.length === 0) return '';
 
@@ -264,7 +283,7 @@ export class OpenAIStreamAdapter {
   /**
    * Extract full prompt from messages
    */
-  private extractPromptFull(messages: OpenAIMessage[]): string {
+  private extractPromptFull(messages: AnthropicMessage[]): string {
     return messages
       .map((m) => {
         const role = m.role.toUpperCase();
@@ -272,7 +291,11 @@ export class OpenAIStreamAdapter {
           typeof m.content === 'string'
             ? m.content
             : Array.isArray(m.content)
-                ? m.content.map((c) => (typeof c === 'string' ? c : (c as Record<string, unknown>).text || '')).join('\n')
+                ? m.content
+                    .map((c) =>
+                      typeof c === 'string' ? c : (c as Record<string, unknown>).text || ''
+                    )
+                    .join('\n')
                 : '';
         return `[${role}]\n${content}`;
       })

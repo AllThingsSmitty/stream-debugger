@@ -23,6 +23,7 @@ export function ReplayControls() {
   useEffect(() => {
     if (!isPlaying || !stream || stream.events.length === 0) {
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      startTimeRef.current = null;
       return;
     }
 
@@ -31,13 +32,17 @@ export function ReplayControls() {
     }
 
     const animate = (now: number) => {
-      const elapsed = (now - startTimeRef.current!) / speed;
+      const elapsed = (now - startTimeRef.current!) * speed;
       const events = stream.events;
-      let nextIndex = 0;
+      const currentIdx = useStreamPlayback.getState().currentIndex;
+      let nextIndex = currentIdx;
 
-      for (let i = 0; i < events.length; i++) {
-        if (events[i].offsetMs && events[i].offsetMs <= elapsed) {
+      for (let i = currentIdx; i < events.length; i++) {
+        const event = events[i];
+        if (event && typeof event.offsetMs === 'number' && event.offsetMs <= elapsed) {
           nextIndex = i;
+        } else {
+          break;
         }
       }
 
@@ -46,7 +51,9 @@ export function ReplayControls() {
         seek(events.length - 1);
         startTimeRef.current = null;
       } else {
-        seek(nextIndex);
+        if (nextIndex !== currentIdx) {
+          seek(nextIndex);
+        }
         animationRef.current = requestAnimationFrame(animate);
       }
     };
@@ -56,7 +63,7 @@ export function ReplayControls() {
     return () => {
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-  }, [isPlaying, stream, speed, seek, pause]);
+  }, [isPlaying, stream, speed, pause, seek]);
 
   return (
     <div className="w-full border-t pt-4 mt-4">
