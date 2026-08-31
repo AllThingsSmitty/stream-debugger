@@ -27,7 +27,7 @@ export const useStreamPlayback = create<PlaybackState>((set, get) => ({
 
   setStream: (stream) => {
     const duration = stream.events.length > 0
-      ? Math.max(...stream.events.map(e => e.timestamp + (e.duration || 0)))
+      ? Math.max(...stream.events.map(e => e.offsetMs))
       : 0;
     set({ stream, currentIndex: 0, duration, isPlaying: false });
   },

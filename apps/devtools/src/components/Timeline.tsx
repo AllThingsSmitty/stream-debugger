@@ -41,8 +41,7 @@ interface TimelineEventProps {
 }
 
 function TimelineEvent({ event, index, isActive, onClick }: TimelineEventProps) {
-  const duration = event.duration || 0;
-  const content = event.data.content || '';
+  const content = (event.data || '').toString();
   const preview = content.substring(0, 50) + (content.length > 50 ? '...' : '');
 
   return (
@@ -60,7 +59,7 @@ function TimelineEvent({ event, index, isActive, onClick }: TimelineEventProps) 
           <p className="font-mono text-sm text-gray-700">{preview}</p>
           <div className="flex gap-4 mt-1 text-xs text-gray-500">
             <span>@{event.offsetMs}ms</span>
-            {duration > 0 && <span>{duration}ms</span>}
+            <span className="text-gray-400">{event.type}</span>
           </div>
         </div>
       </div>

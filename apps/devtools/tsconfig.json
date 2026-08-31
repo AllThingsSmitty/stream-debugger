@@ -12,11 +12,18 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
-      "@stream-debugger/core": ["../../packages/core/dist"],
-      "@stream-debugger/sdk": ["../../packages/sdk/dist"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@stream-debugger/core": [
+        "../../packages/core/dist"
+      ],
+      "@stream-debugger/sdk": [
+        "../../packages/sdk/dist"
+      ]
     },
-    "allowJs": true
+    "allowJs": true,
+    "noEmit": true
   },
   "include": [
     "next-env.d.ts",

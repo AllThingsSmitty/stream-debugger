@@ -36,7 +36,7 @@ export function ReplayControls() {
       let nextIndex = 0;
 
       for (let i = 0; i < events.length; i++) {
-        if (events[i].timestamp && events[i].timestamp <= elapsed) {
+        if (events[i].offsetMs && events[i].offsetMs <= elapsed) {
           nextIndex = i;
         }
       }

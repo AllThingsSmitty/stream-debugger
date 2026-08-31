@@ -7,7 +7,7 @@ import { OpenAIStreamAdapter } from './openai';
 
 describe('OpenAIStreamAdapter', () => {
   let adapter: OpenAIStreamAdapter;
-  let mockClient: any;
+  let mockClient: unknown;
 
   beforeEach(() => {
     // Create mock OpenAI client that simulates streaming

@@ -151,10 +151,6 @@ export class StreamBuilder {
       .map((e) => e.data || '')
       .join('');
 
-    // Find time to first token
-    const firstTokenEvent = this.events.find((e) => e.type === 'token' || e.type === 'chunk');
-    const timeToFirstTokenMs = firstTokenEvent?.offsetMs ?? 0;
-
     // Compute throughput metrics
     let peakThroughputTokensPerSec = 0;
     let minThroughputTokensPerSec = Infinity;
