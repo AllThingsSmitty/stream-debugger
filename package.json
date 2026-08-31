@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "dev": "pnpm -r --parallel dev",
-    "build": "pnpm -r --filter '!@stream-debugger/example-*' --parallel build",
+    "build": "pnpm -r --filter '!@stream-debugger/example-*' build",
     "test": "pnpm -r --filter '!@stream-debugger/example-*' --parallel test",
     "lint": "pnpm -r --filter '!@stream-debugger/example-*' --parallel lint",
     "typecheck": "pnpm -r --filter '!@stream-debugger/example-*' --parallel typecheck"
