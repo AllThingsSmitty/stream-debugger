@@ -17,7 +17,7 @@ export default function Home() {
       <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900">stream-debugger</h1>
+          <h1 className="text-4xl font-bold text-gray-900">Stream Debugger</h1>
           <p className="text-gray-600 mt-2">Inspect and replay streaming LLM responses</p>
         </div>
 
@@ -90,45 +90,39 @@ function DetailPane() {
   const event = useStreamPlayback((s) => s.getCurrentEvent());
 
   if (!event) {
-    return (
-      <p className="text-gray-500 text-sm">No event selected</p>
-    );
+    return <p className="text-gray-500 text-sm">No event selected</p>;
   }
 
   return (
     <div className="space-y-3 font-mono text-sm">
       <div>
-        <p className="font-semibold text-gray-600">Timestamp</p>
-        <p className="text-gray-900">{event.timestamp}ms</p>
+        <p className="font-semibold text-gray-600">Offset</p>
+        <p className="text-gray-900">{event.offsetMs}ms</p>
       </div>
 
-      {event.duration !== undefined && (
+      <div>
+        <p className="font-semibold text-gray-600">Type</p>
+        <p className="text-gray-900">{event.type}</p>
+      </div>
+
+      {event.tokens !== undefined && (
         <div>
-          <p className="font-semibold text-gray-600">Duration</p>
-          <p className="text-gray-900">{event.duration}ms</p>
+          <p className="font-semibold text-gray-600">Tokens</p>
+          <p className="text-gray-900">{event.tokens}</p>
         </div>
       )}
 
       <div>
         <p className="font-semibold text-gray-600">Content</p>
         <p className="text-gray-900 break-words whitespace-pre-wrap">
-          {event.data?.content || '(empty)'}
+          {event.data || '(empty)'}
         </p>
       </div>
 
-      {event.data?.finish_reason && (
+      {event.metadata?.label && (
         <div>
-          <p className="font-semibold text-gray-600">Finish Reason</p>
-          <p className="text-gray-900">{event.data.finish_reason}</p>
-        </div>
-      )}
-
-      {event.data?.usage && (
-        <div>
-          <p className="font-semibold text-gray-600">Usage</p>
-          <p className="text-gray-900">
-            {event.data.usage.completion_tokens} tokens
-          </p>
+          <p className="font-semibold text-gray-600">Label</p>
+          <p className="text-gray-900">{event.metadata.label}</p>
         </div>
       )}
     </div>

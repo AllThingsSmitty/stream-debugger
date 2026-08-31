@@ -1,8 +1,11 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { useStreamPlayback } from '@/hooks/useStreamPlayback';
 
 export function ReplayControls() {
+  const animationRef = useRef<number | null>(null);
+  const startTimeRef = useRef<number | null>(null);
   const isPlaying = useStreamPlayback((s) => s.isPlaying);
   const speed = useStreamPlayback((s) => s.speed);
   const progress = useStreamPlayback((s) => s.getProgress());
@@ -16,6 +19,44 @@ export function ReplayControls() {
 
   const totalEvents = stream?.events.length || 0;
   const eventNum = currentIndex + 1;
+
+  useEffect(() => {
+    if (!isPlaying || !stream || stream.events.length === 0) {
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      return;
+    }
+
+    if (startTimeRef.current === null) {
+      startTimeRef.current = performance.now();
+    }
+
+    const animate = (now: number) => {
+      const elapsed = (now - startTimeRef.current!) / speed;
+      const events = stream.events;
+      let nextIndex = 0;
+
+      for (let i = 0; i < events.length; i++) {
+        if (events[i].offsetMs && events[i].offsetMs <= elapsed) {
+          nextIndex = i;
+        }
+      }
+
+      if (nextIndex >= events.length - 1) {
+        pause();
+        seek(events.length - 1);
+        startTimeRef.current = null;
+      } else {
+        seek(nextIndex);
+        animationRef.current = requestAnimationFrame(animate);
+      }
+    };
+
+    animationRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    };
+  }, [isPlaying, stream, speed, seek, pause]);
 
   return (
     <div className="w-full border-t pt-4 mt-4">

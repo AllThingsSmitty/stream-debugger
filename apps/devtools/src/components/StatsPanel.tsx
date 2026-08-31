@@ -12,16 +12,17 @@ export function StatsPanel() {
     const events = stream.events;
     if (events.length === 0) return null;
 
-    const totalTime = Math.max(...events.map(e => e.timestamp)) - Math.min(...events.map(e => e.timestamp));
+    const totalTime = Math.max(...events.map(e => e.offsetMs)) - Math.min(...events.map(e => e.offsetMs));
     const tokenCount = events.length;
-    const ttft = events[0]?.timestamp || 0;
+    const ttft = events[0]?.offsetMs || 0;
     const throughput = totalTime > 0 ? ((tokenCount / totalTime) * 1000).toFixed(2) : '0.00';
 
     // Extract metadata if available
     const metadata = stream.metadata || {};
+    const summary = stream.summary || {};
     const model = metadata.model || 'Unknown';
-    const finishReason = metadata.finish_reason || '-';
-    const cost = metadata.cost_estimate || null;
+    const finishReason = metadata.response?.finishReason || '-';
+    const cost = summary.estimatedCost?.amount || null;
 
     return {
       tokenCount,

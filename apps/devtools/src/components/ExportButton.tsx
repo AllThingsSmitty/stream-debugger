@@ -39,27 +39,28 @@ export function ExportButton() {
 function generateMarkdown(stream: StreamDocument): string {
   const metadata = stream.metadata || {};
   const events = stream.events || [];
+  const summary = stream.summary || {};
 
   let md = '# Stream Export\n\n';
 
   // Metadata section
   md += '## Stream Information\n\n';
   if (metadata.model) md += `- **Model**: ${metadata.model}\n`;
-  if (metadata.finish_reason) md += `- **Finish Reason**: ${metadata.finish_reason}\n`;
-  if (metadata.cost_estimate) md += `- **Estimated Cost**: $${metadata.cost_estimate.toFixed(4)}\n`;
+  if (metadata.response?.finishReason) md += `- **Finish Reason**: ${metadata.response.finishReason}\n`;
+  if (summary.estimatedCost) md += `- **Estimated Cost**: $${summary.estimatedCost.amount.toFixed(4)}\n`;
+  if (summary.totalTokens) md += `- **Total Tokens**: ${summary.totalTokens}\n`;
   md += '\n';
 
   // Events section
   md += '## Token Stream\n\n';
-  md += '| # | Timestamp | Duration | Content |\n';
-  md += '|---|-----------|----------|----------|\n';
+  md += '| # | Offset (ms) | Type | Content |\n';
+  md += '|---|------------|------|----------|\n';
 
   events.forEach((event, idx) => {
-    const content = (event.data?.content || '')
+    const content = (event.data || '')
       .replace(/\n/g, ' ')
       .substring(0, 50);
-    const duration = event.duration ? `${event.duration}ms` : '-';
-    md += `| ${idx + 1} | ${event.timestamp}ms | ${duration} | ${content} |\n`;
+    md += `| ${idx + 1} | ${event.offsetMs} | ${event.type} | ${content} |\n`;
   });
 
   return md;

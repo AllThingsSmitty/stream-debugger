@@ -5,7 +5,7 @@
   "description": "DevTools for debugging streaming LLM responses and real-time data",
   "license": "MIT",
   "author": "Matt Smith <runner_28@hotmail.com>",
-  "packageManager": "pnpm@8.0.0",
+  "packageManager": "pnpm@10.15.0",
   "workspaces": [
     "apps/*",
     "packages/*",
@@ -13,10 +13,10 @@
   ],
   "scripts": {
     "dev": "pnpm -r --parallel dev",
-    "build": "pnpm -r --filter '!@stream-debugger/example-*' --parallel build",
-    "test": "pnpm -r --filter '!@stream-debugger/example-*' --parallel test",
-    "lint": "pnpm -r --filter '!@stream-debugger/example-*' --parallel lint",
-    "typecheck": "pnpm -r --filter '!@stream-debugger/example-*' --parallel typecheck"
+    "build": "pnpm -r build",
+    "test": "pnpm -r --parallel test",
+    "lint": "pnpm -r --parallel lint",
+    "typecheck": "pnpm -r --parallel typecheck"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

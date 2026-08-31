@@ -7,6 +7,34 @@ import {
 } from '@stream-debugger/core';
 import type { CaptureConfig, StreamCapture } from '../types/adapter';
 
+interface OpenAIChunk {
+  choices?: Array<{
+    delta?: { content?: string };
+    finish_reason?: string | null;
+    index?: number;
+  }>;
+  usage?: { completion_tokens?: number; prompt_tokens?: number };
+}
+
+interface OpenAIError {
+  code?: string;
+  message?: string;
+}
+
+interface OpenAIMessage {
+  role: string;
+  content: string | Array<{ type?: string; text?: string }>;
+}
+
+interface OpenAIClient {
+  [key: string]: unknown;
+  chat?: {
+    completions?: {
+      create?: (params: Record<string, unknown>) => unknown;
+    };
+  };
+}
+
 /**
  * OpenAI streaming response capture
  */
@@ -67,21 +95,20 @@ class OpenAICapture implements StreamCapture {
 
     let totalTokens = 0;
     let finishReason: string | undefined;
-    let fullText = '';
     let firstTokenOffset = -1;
     let error: { code: string; message: string } | undefined;
 
     // Process all captured events
     for (const event of this.events) {
       if (event.type === 'error') {
-        const err = event.data as any;
+        const err = event.data as OpenAIError;
         error = {
           code: err.code || 'UNKNOWN',
           message: err.message || String(err),
         };
         builder.addError(error.code, error.message, event.timestamp);
       } else if (event.type === 'chunk') {
-        const chunk = event.data as any;
+        const chunk = event.data as OpenAIChunk;
 
         // Extract choice delta
         if (chunk.choices?.[0]?.delta?.content) {
@@ -93,7 +120,6 @@ class OpenAICapture implements StreamCapture {
           }
 
           totalTokens += tokens;
-          fullText += content;
 
           builder.addChunk(content, event.timestamp, tokens, {
             choice_index: chunk.choices[0].index,
@@ -165,7 +191,7 @@ export class OpenAIStreamAdapter {
   /**
    * @param client OpenAI client instance (or compatible)
    */
-  constructor(private client: any) {}
+  constructor(private client: unknown) {}
 
   /**
    * Capture a streaming chat completion
@@ -179,7 +205,7 @@ export class OpenAIStreamAdapter {
 
     // Extract model and build context
     const model = (params.model as string) || 'unknown';
-    const messages = (params.messages as any[]) || [];
+    const messages = (params.messages as OpenAIMessage[]) || [];
 
     const requestContext: RequestContext = {
       userId: config.userId,
@@ -203,7 +229,11 @@ export class OpenAIStreamAdapter {
     // Execute streaming request in background
     (async () => {
       try {
-        const stream = await this.client.chat.completions.create({
+        const client = this.client as Record<string, unknown>;
+        const chat = (client.chat as Record<string, unknown>);
+        const completions = (chat.completions as Record<string, unknown>);
+        const create = (completions.create as Function);
+        const stream = await create({
           ...params,
           stream: true,
         });
@@ -226,7 +256,7 @@ export class OpenAIStreamAdapter {
   /**
    * Extract preview text from messages (first 100 chars of last user message)
    */
-  private extractPromptPreview(messages: any[]): string {
+  private extractPromptPreview(messages: OpenAIMessage[]): string {
     const userMessages = messages.filter((m) => m.role === 'user');
     if (userMessages.length === 0) return '';
 
@@ -242,16 +272,16 @@ export class OpenAIStreamAdapter {
   /**
    * Extract full prompt from messages
    */
-  private extractPromptFull(messages: any[]): string {
+  private extractPromptFull(messages: OpenAIMessage[]): string {
     return messages
       .map((m) => {
         const role = m.role.toUpperCase();
         const content =
           typeof m.content === 'string'
             ? m.content
-            : m.content
-                ?.map((c: any) => (typeof c === 'string' ? c : c.text || ''))
-                .join('\n') || '';
+            : Array.isArray(m.content)
+                ? m.content.map((c) => (typeof c === 'string' ? c : (c as Record<string, unknown>).text || '')).join('\n')
+                : '';
         return `[${role}]\n${content}`;
       })
       .join('\n\n');
