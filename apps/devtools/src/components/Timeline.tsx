@@ -59,7 +59,7 @@ function TimelineEvent({ event, index, isActive, onClick }: TimelineEventProps) 
         <div className="flex-1">
           <p className="font-mono text-sm text-gray-700">{preview}</p>
           <div className="flex gap-4 mt-1 text-xs text-gray-500">
-            <span>@{event.timestamp}ms</span>
+            <span>@{event.offsetMs}ms</span>
             {duration > 0 && <span>{duration}ms</span>}
           </div>
         </div>

@@ -17,7 +17,7 @@ export default function Home() {
       <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900">stream-debugger</h1>
+          <h1 className="text-4xl font-bold text-gray-900">Stream Debugger</h1>
           <p className="text-gray-600 mt-2">Inspect and replay streaming LLM responses</p>
         </div>
 
@@ -90,9 +90,7 @@ function DetailPane() {
   const event = useStreamPlayback((s) => s.getCurrentEvent());
 
   if (!event) {
-    return (
-      <p className="text-gray-500 text-sm">No event selected</p>
-    );
+    return <p className="text-gray-500 text-sm">No event selected</p>;
   }
 
   return (
@@ -126,9 +124,7 @@ function DetailPane() {
       {event.data?.usage && (
         <div>
           <p className="font-semibold text-gray-600">Usage</p>
-          <p className="text-gray-900">
-            {event.data.usage.completion_tokens} tokens
-          </p>
+          <p className="text-gray-900">{event.data.usage.completion_tokens} tokens</p>
         </div>
       )}
     </div>
