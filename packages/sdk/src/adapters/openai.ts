@@ -26,14 +26,6 @@ interface OpenAIMessage {
   content: string | Array<{ type?: string; text?: string }>;
 }
 
-interface OpenAIClient {
-  [key: string]: unknown;
-  chat?: {
-    completions?: {
-      create?: (params: Record<string, unknown>) => unknown;
-    };
-  };
-}
 
 /**
  * OpenAI streaming response capture
@@ -232,11 +224,11 @@ export class OpenAIStreamAdapter {
         const client = this.client as Record<string, unknown>;
         const chat = (client.chat as Record<string, unknown>);
         const completions = (chat.completions as Record<string, unknown>);
-        const create = (completions.create as Function);
+        const create = completions.create as (params: Record<string, unknown>) => Promise<unknown>;
         const stream = await create({
           ...params,
           stream: true,
-        });
+        }) as AsyncIterable<unknown>;
 
         // Process stream events
         for await (const chunk of stream) {

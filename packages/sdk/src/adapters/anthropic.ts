@@ -45,12 +45,6 @@ interface AnthropicMessage {
   content: string | Array<{ type?: string; text?: string }>;
 }
 
-interface AnthropicClient {
-  [key: string]: unknown;
-  messages?: {
-    create?: (params: Record<string, unknown>) => unknown;
-  };
-}
 
 /**
  * Anthropic streaming response capture
@@ -110,20 +104,19 @@ class AnthropicCapture implements StreamCapture {
       builder.addTags(this.config.tags);
     }
 
-    let totalTokens = 0;
     let inputTokens = 0;
     let outputTokens = 0;
     let finishReason: string | undefined;
-    let firstTokenOffset = -1;
     let error: { code: string; message: string } | undefined;
 
     // Process all captured events
     for (const event of this.events) {
       if (event.type === 'error') {
         const err = event.data as Record<string, unknown>;
+        const errorObj = err.error as Record<string, unknown> | undefined;
         error = {
-          code: (err.error?.type as string) || 'UNKNOWN',
-          message: (err.error?.message as string) || String(err),
+          code: (errorObj?.type as string) || 'UNKNOWN',
+          message: (errorObj?.message as string) || String(err),
         };
         builder.addError(error.code, error.message, event.timestamp);
       } else if (event.type === 'event') {
@@ -139,12 +132,6 @@ class AnthropicCapture implements StreamCapture {
           if (delta.delta.type === 'text_delta' && delta.delta.text) {
             const content = delta.delta.text;
             const tokens = this.estimateTokens(content);
-
-            if (firstTokenOffset === -1) {
-              firstTokenOffset = event.timestamp;
-            }
-
-            totalTokens += tokens;
 
             builder.addChunk(content, event.timestamp, tokens, {
               block_index: delta.index,
@@ -256,11 +243,11 @@ export class AnthropicStreamAdapter {
       try {
         const client = this.client as Record<string, unknown>;
         const messages_api = client.messages as Record<string, unknown>;
-        const create = messages_api.create as Function;
+        const create = messages_api.create as (params: Record<string, unknown>) => Promise<unknown>;
         const stream = await create({
           ...params,
           stream: true,
-        });
+        }) as AsyncIterable<unknown>;
 
         // Process stream events
         for await (const event of stream) {

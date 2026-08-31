@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import { useStreamPlayback } from '@/hooks/useStreamPlayback';
 
 export function ReplayControls() {

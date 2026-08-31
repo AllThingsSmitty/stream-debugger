@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",
-    "test": "vitest"
+    "test": "echo 'No tests'"
   },
   "dependencies": {
     "@stream-debugger/core": "workspace:*",

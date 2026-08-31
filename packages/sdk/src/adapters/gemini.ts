@@ -40,10 +40,6 @@ interface GeminiMessage {
       }>;
 }
 
-interface GeminiClient {
-  [key: string]: unknown;
-  generateContentStream?: (params: Record<string, unknown>) => unknown;
-}
 
 /**
  * Gemini streaming response capture
@@ -103,11 +99,9 @@ class GeminiCapture implements StreamCapture {
       builder.addTags(this.config.tags);
     }
 
-    let totalTokens = 0;
     let inputTokens = 0;
     let outputTokens = 0;
     let finishReason: string | undefined;
-    let firstTokenOffset = -1;
     let error: { code: string; message: string } | undefined;
 
     // Process all captured events
@@ -129,16 +123,13 @@ class GeminiCapture implements StreamCapture {
         }
 
         // Extract content chunks
-        if (chunk.candidates?.[0]?.content?.text) {
-          const content = chunk.candidates[0].content.text;
+        const candidate = chunk.candidates?.[0];
+        const content = candidate?.content?.text ||
+          (Array.isArray(candidate?.content?.parts) && candidate.content.parts[0]?.text) ||
+          '';
+
+        if (content) {
           const tokens = this.estimateTokens(content);
-
-          if (firstTokenOffset === -1) {
-            firstTokenOffset = event.timestamp;
-          }
-
-          totalTokens += tokens;
-
           builder.addChunk(content, event.timestamp, tokens, {
             candidate_index: 0,
           });
@@ -248,8 +239,8 @@ export class GeminiStreamAdapter {
       try {
         const client = this.client as Record<string, unknown>;
         const generateContentStream =
-          client.generateContentStream as Function;
-        const stream = await generateContentStream(params);
+          client.generateContentStream as (params: Record<string, unknown>) => Promise<unknown>;
+        const stream = await generateContentStream(params) as AsyncIterable<unknown>;
 
         // Process stream events
         for await (const chunk of stream) {
@@ -273,8 +264,9 @@ export class GeminiStreamAdapter {
     const client = this.client as Record<string, unknown>;
     // Try common property names for model info
     if (typeof client.model === 'string') return client.model;
-    if (typeof (client as Record<string, Record<string, unknown>>).model?.model === 'string') {
-      return (client as Record<string, Record<string, unknown>>).model.model;
+    const modelProp = (client as Record<string, Record<string, unknown>>).model;
+    if (modelProp && typeof modelProp.model === 'string') {
+      return modelProp.model;
     }
     return '';
   }
