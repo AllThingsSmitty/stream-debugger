@@ -5,7 +5,7 @@
   "description": "DevTools for debugging streaming LLM responses and real-time data",
   "license": "MIT",
   "author": "Matt Smith <runner_28@hotmail.com>",
-  "packageManager": "pnpm@8.0.0",
+  "packageManager": "pnpm@10.15.0",
   "workspaces": [
     "apps/*",
     "packages/*",
