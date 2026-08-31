@@ -13,5 +13,7 @@ export type {
 // Adapter types
 export type { StreamAdapter, StreamCapture, CaptureConfig } from './types/adapter';
 
-// OpenAI adapter
+// Adapters
 export { OpenAIStreamAdapter } from './adapters/openai';
+export { AnthropicStreamAdapter } from './adapters/anthropic';
+export { GeminiStreamAdapter } from './adapters/gemini';
