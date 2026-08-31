@@ -1,5 +1,6 @@
 'use client';
 
+import type { StreamDocument } from '@stream-debugger/core';
 import { useStreamPlayback } from '@/hooks/useStreamPlayback';
 
 export function ExportButton() {
@@ -35,7 +36,7 @@ export function ExportButton() {
   );
 }
 
-function generateMarkdown(stream: any): string {
+function generateMarkdown(stream: StreamDocument): string {
   const metadata = stream.metadata || {};
   const events = stream.events || [];
 
